@@ -1,5 +1,7 @@
 import sys
 from PIL import Image
+import numpy as np
+
 PAIR_WISE_t = 50
 PAIR_WISE_T = 42  # persent
 TWIN_COMPARISON_Tb = 60
@@ -61,6 +63,7 @@ def pair_wise(first, second, _):
 
 
 def histogram_comparison(first, second, index):
+    # only grey level
     im1 = Image.open(first).convert('LA')
     im2 = Image.open(second).convert('LA')
 
@@ -81,8 +84,6 @@ def histogram_comparison(first, second, index):
 
     # Normalize
     SD_n = SD/(im1.size[0]*im1.size[1]) * 100
-    # print(f"{SD_n: .04}", SD)
-    # return False
     return check_fade_or_wipe(SD_n, index)
 
 
@@ -93,9 +94,7 @@ def color_histogram_comp(first, second, index):
     assert im1.size == im2.size, "size of two image not the same"
     pix1 = im1.load()
     pix2 = im2.load()
-
-    his1 = {}
-    his2 = {}
+his1 = {} his2 = {}
     for i in range(im1.size[0]):
         for j in range(im1.size[1]):
             his1[pix1[i, j]] = 0 if pix1[i,
@@ -119,6 +118,34 @@ def color_histogram_comp(first, second, index):
     # return False
     return check_fade_or_wipe(CHD_n, index)
 
+def likelihood_ratio(first, second, index):
+    im1 = Image.open(first).convert('LA')
+    im2 = Image.open(second).convert('LA')
+
+    assert im1.size == im2.size, "size of two image not the same"
+    pix1 = im1.load()
+    pix2 = im2.load()
+
+    sum1 = 0
+    sum2 = 0
+    expanded_pix1 = []
+    expanded_pix2 = []
+    for i in range(im1.size[0]):
+        for j in range(im1.size[1]):
+            sum1 += pix1[i,j][0]
+            sum2 += pix2[i,j][0]
+            expanded_pix1.append(pix1[i,j][0])
+            expanded_pix2.append(pix2[i,j][0])
+
+    mean1 = sum1/(im1.size[0]*im1.size[1])
+    mean2 = sum2/(im1.size[0]*im1.size[1])
+
+    cov1 = np.cov(expanded_pix1)
+    cov2 = np.cov(expanded_pix2)
+
+    LR = (((cov1 + cov2)/2 + ((mean1-mean2)/2)**2)**2) / 2 / (im1.size[0]*im1.size[1]) *100
+    print(LR)
+    return check_fade_or_wipe(LR, index)
 
 def answer(n="news"):
     with open(f"{n}_ground.txt", 'r') as f:
@@ -126,6 +153,8 @@ def answer(n="news"):
         for l in f.readlines()[4:]:
             if l.find('~') >= 0:
                 r = l.split('~')
+                # add previous frame to correct two frame comparison
+                shot_change.append(int(r[0])-1) 
                 for rr in range(int(r[0]), int(r[1].replace('\n', ''))+1):
                     shot_change.append(rr-1)
             else:
@@ -144,10 +173,10 @@ def read_news(compare=pair_wise):
 
 def read_soccer(compare=pair_wise):
     for i in range(0, 864):
-        # for i in answer("soccer"):
+    # for i in answer("soccer"):
         if compare(f"soccer_out/soccer{i:07}.jpg", f"soccer_out/soccer{i+1:07}.jpg", i):
-            # pass
-            print(i+1)
+            pass
+            # print(i+1)
 
 
 def read_ngc(compare=pair_wise):
@@ -164,4 +193,6 @@ if __name__ == "__main__":
     # print(answer("news"))
     # print(answer("ngc"))
     # read_ngc()
-    read_soccer(color_histogram_comp)
+    # read_soccer(color_histogram_comp)
+    # read_soccer(likelihood_ratio)
+    # read_soccer(histogram_comparison)
