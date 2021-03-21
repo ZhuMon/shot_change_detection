@@ -4,6 +4,14 @@ import argparse
 from PIL import Image
 from PIL import ImageFilter
 import numpy as np
+import matplotlib.pyplot as plt
+
+DRY = False # whether only plot
+VIDEO = ""
+VALUE_FOR_PLOT = []
+FRAME_AMOUNT = 0
+FILE_PREFIX = ''
+FILE_EXTENSION = ''
 
 PAIR_WISE_t = 50
 PAIR_WISE_T = 42  # persent
@@ -13,8 +21,8 @@ TWIN_COMPARISON_accum = 0
 GRADUAL_TRANSITION_FRAME = []
 LIKELIHOOD_REGION_SIZE = (8, 8)
 EDGE_DETECT_THRESHOLD = 125 # threshold to decide whether edge
-VALUES_FOR_PLOT = []
-
+ANSWER = []
+TRUE_ANSWER = []
 
 def check_fade_or_wipe(SD, index):
     global GRADUAL_TRANSITION_FRAME
@@ -24,6 +32,8 @@ def check_fade_or_wipe(SD, index):
             if TWIN_COMPARISON_accum > TWIN_COMPARISON_Tb:
                 print(
                     f"{GRADUAL_TRANSITION_FRAME[0]}~{GRADUAL_TRANSITION_FRAME[-1]}")
+                ANSWER.append(f"{GRADUAL_TRANSITION_FRAME[0]}~{GRADUAL_TRANSITION_FRAME[-1]}")
+ 
             GRADUAL_TRANSITION_FRAME = []
         TWIN_COMPARISON_accum = TWIN_COMPARISON_Ts
         return True
@@ -36,6 +46,7 @@ def check_fade_or_wipe(SD, index):
             if TWIN_COMPARISON_accum > TWIN_COMPARISON_Tb:
                 print(
                     f"{GRADUAL_TRANSITION_FRAME[0]}~{GRADUAL_TRANSITION_FRAME[-1]}")
+                ANSWER.append(f"{GRADUAL_TRANSITION_FRAME[0]}~{GRADUAL_TRANSITION_FRAME[-1]}")
             GRADUAL_TRANSITION_FRAME = []
         TWIN_COMPARISON_accum = TWIN_COMPARISON_Ts
         return False
@@ -63,6 +74,7 @@ def pair_wise(first, second, _):
     # print(DP/(im1.size[0]*im1.size[1]) * 100, DP)
     # Normalize
     DP_n = DP/(im1.size[0]*im1.size[1]) * 100
+    VALUE_FOR_PLOT.append(DP_n)    
     if DP_n > PAIR_WISE_T:
         return True
     else:
@@ -91,6 +103,9 @@ def histogram_comparison(first, second, index):
 
     # Normalize
     SD_n = SD/(im1.size[0]*im1.size[1]) * 100
+    VALUE_FOR_PLOT.append(SD_n)    
+    if DRY:
+        return False
     return check_fade_or_wipe(SD_n, index)
 
 
@@ -122,8 +137,9 @@ def color_histogram_comp(first, second, index):
             CHD += abs(his1[c] - his2[c])
 
     CHD_n = CHD / (im1.size[0] * im1.size[1]) * 100
-    # print(CHD_n)
-    # return False
+    VALUE_FOR_PLOT.append(CHD_n)    
+    if DRY:
+        return False
     return check_fade_or_wipe(CHD_n, index)
 
 def likelihood_ratio(first, second, index):
@@ -152,7 +168,9 @@ def likelihood_ratio(first, second, index):
     cov2 = np.cov(expanded_pix2)
 
     LR = (((cov1 + cov2)/2 + ((mean1-mean2)/2)**2)**2) / 2 / (im1.size[0]*im1.size[1]) *100
-    print(LR)
+    VALUE_FOR_PLOT.append(LR)
+    if DRY:
+        return False
     return check_fade_or_wipe(LR, index)
 
 def edge_detection(first, second, index):
@@ -184,8 +202,9 @@ def edge_detection(first, second, index):
                     X_out += 1
 
     ECR = max(X_in/delta_n2, X_out/delta_n1)
-    print(ECR)
-    return False
+    VALUE_FOR_PLOT.append(ECR)
+    if DRY:
+        return False
     return check_fade_or_wipe(ECR, index)
             
     
@@ -204,32 +223,37 @@ def answer(n="news"):
 
     return shot_change
 
-
-def read_news(compare=pair_wise):
-    # T = 42
-    for i in range(0, 1379):
-        # for i in answer("news"):
-        if compare(f"news_out/news-000{i:04}.jpg", f"news_out/news-000{i+1:04}.jpg", i):
-            print(i+1)
-
-
-def read_soccer(compare=pair_wise):
-    for i in range(0, 864):
-    # for i in answer("soccer"):
-        if compare(f"soccer_out/soccer{i:07}.jpg", f"soccer_out/soccer{i+1:07}.jpg", i):
-            pass
-            # print(i+1)
-
-
-def read_ngc(compare=pair_wise):
-    for i in range(0, 1059):
-        # for i in answer("ngc"):
+def shot_change_detect(compare=pair_wise):
+    for i in range(FRAME_AMOUNT):
         if i % 100 == 0:
-            print(f"{i:04}/1059")
-        if compare(f"ngc_out/ngc-{i:04}.jpeg", f"ngc_out/ngc-{i+1:04}.jpeg", i):
+            print(f"{i:04}/{FRAME_AMOUNT}")
+        if compare(f"{FILE_PREFIX}{i:04}.{FILE_EXTENSION}", f"{FILE_PREFIX}{i+1:04}.{FILE_EXTENSION}", i):
             print(i+1)
+            ANSWER.append(f"{i}+1")
 
+def draw_plot():
+    global VIDEO
+    global VALUE_FOR_PLOT
 
+    y = VALUE_FOR_PLOT
+    answer = []
+    with open(f"{VIDEO}_ground.txt", 'r') as f:
+        for l in f.readlines()[4:]:
+            if l.find('~') >= 0:
+                r = l.split('~')
+                for rr in range(int(r[0]), int(r[1].replace('\n', ''))+1):
+                    answer.append(rr-1)
+            else:
+                answer.append(int(l.replace('\n', '')))
+
+    an_y = [sum(y)/len(y) for a in answer]
+    new_y = [y[x] for x in answer]
+    plt.plot(y)
+    plt.plot(answer, an_y, 'ro')
+    plt.show()
+
+def draw_PR_plot():
+    pass
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     method_group = parser.add_mutually_exclusive_group()
@@ -246,7 +270,6 @@ if __name__ == "__main__":
     parser.add_argument('-d', '--dry', action = 'store_true', help="only print image")
 
     args = parser.parse_args()
-    read_func = ''
     cmp_func = ''
     if args.pair_wise:
         cmp_func = pair_wise
@@ -260,10 +283,23 @@ if __name__ == "__main__":
         cmp_func = edge_detection
 
     if args.news:
-        read_func = read_news
+        FRAME_AMOUNT = 1379
+        FILE_PREFIX = "news_out/news-000"
+        FILE_EXTENSION = "jpg"
+        VIDEO = "news"
     elif args.soccer:
-        read_func = read_soccer
+        FRAME_AMOUNT = 864
+        FILE_PREFIX = "soccer_out/soccer000"
+        FILE_EXTENSION = "jpg"
+        VIDEO = "soccer"
     elif args.ngc:
-        read_func = read_ngc
+        FRAME_AMOUNT = 1059
+        FILE_PREFIX = "ngc_out/ngc-"
+        FILE_EXTENSION = "jpeg"
+        VIDEO = "ngc"
 
-    read_func(cmp_func)
+    if args.dry:
+        DRY = True
+
+    shot_change_detect(cmp_func)
+    draw_plot()
