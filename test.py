@@ -1,5 +1,8 @@
 import sys
+import argparse
+
 from PIL import Image
+from PIL import ImageFilter
 import numpy as np
 
 PAIR_WISE_t = 50
@@ -8,6 +11,9 @@ TWIN_COMPARISON_Tb = 60
 TWIN_COMPARISON_Ts = 10
 TWIN_COMPARISON_accum = 0
 GRADUAL_TRANSITION_FRAME = []
+LIKELIHOOD_REGION_SIZE = (8, 8)
+EDGE_DETECT_THRESHOLD = 125 # threshold to decide whether edge
+VALUES_FOR_PLOT = []
 
 
 def check_fade_or_wipe(SD, index):
@@ -56,7 +62,8 @@ def pair_wise(first, second, _):
 
     # print(DP/(im1.size[0]*im1.size[1]) * 100, DP)
     # Normalize
-    if DP/(im1.size[0]*im1.size[1]) * 100 > PAIR_WISE_T:
+    DP_n = DP/(im1.size[0]*im1.size[1]) * 100
+    if DP_n > PAIR_WISE_T:
         return True
     else:
         return False
@@ -94,7 +101,8 @@ def color_histogram_comp(first, second, index):
     assert im1.size == im2.size, "size of two image not the same"
     pix1 = im1.load()
     pix2 = im2.load()
-his1 = {} his2 = {}
+    his1 = {}
+    his2 = {}
     for i in range(im1.size[0]):
         for j in range(im1.size[1]):
             his1[pix1[i, j]] = 0 if pix1[i,
@@ -147,6 +155,40 @@ def likelihood_ratio(first, second, index):
     print(LR)
     return check_fade_or_wipe(LR, index)
 
+def edge_detection(first, second, index):
+    im1 = Image.open(first).convert('L')
+    im2 = Image.open(second).convert('L')
+
+    assert im1.size == im2.size, "size of two image not the same"
+    edg1 = im1.filter(ImageFilter.FIND_EDGES)
+    edg2 = im2.filter(ImageFilter.FIND_EDGES)
+
+    pix1 = edg1.load()
+    pix2 = edg2.load()
+
+    delta_n1 = 0 # number of edge of first image
+    delta_n2 = 0
+    X_in = 0
+    X_out = 0
+    for i in range(im1.size[0]):
+        for j in range(im1.size[1]):
+            # second image has new edge
+            if pix2[i,j] >= EDGE_DETECT_THRESHOLD:
+                delta_n2 += 1
+                if pix1[i,j] < EDGE_DETECT_THRESHOLD:
+                    X_in += 1
+            # second image remove the edge
+            if pix1[i,j] >= EDGE_DETECT_THRESHOLD:
+                delta_n1 += 1
+                if pix2[i,j] < EDGE_DETECT_THRESHOLD:
+                    X_out += 1
+
+    ECR = max(X_in/delta_n2, X_out/delta_n1)
+    print(ECR)
+    return False
+    return check_fade_or_wipe(ECR, index)
+            
+    
 def answer(n="news"):
     with open(f"{n}_ground.txt", 'r') as f:
         shot_change = []
@@ -167,7 +209,7 @@ def read_news(compare=pair_wise):
     # T = 42
     for i in range(0, 1379):
         # for i in answer("news"):
-        if compare(f"news_out/news-000{i:04}.jpg", f"news_out/news-000{i+1:04}.jpg"):
+        if compare(f"news_out/news-000{i:04}.jpg", f"news_out/news-000{i+1:04}.jpg", i):
             print(i+1)
 
 
@@ -189,10 +231,39 @@ def read_ngc(compare=pair_wise):
 
 
 if __name__ == "__main__":
-    # read_news()
-    # print(answer("news"))
-    # print(answer("ngc"))
-    # read_ngc()
-    # read_soccer(color_histogram_comp)
-    # read_soccer(likelihood_ratio)
-    # read_soccer(histogram_comparison)
+    parser = argparse.ArgumentParser()
+    method_group = parser.add_mutually_exclusive_group()
+    method_group.add_argument('-p', '--pair_wise', action="store_true")
+    method_group.add_argument('-gh', '--grey_histogram', action="store_true")
+    method_group.add_argument('-ch', '--color_histogram', action="store_true")
+    method_group.add_argument('-l', '--likelihood_ratio', action="store_true")
+    method_group.add_argument('-e', '--edge_detection', action="store_true")
+    video_group = parser.add_mutually_exclusive_group()
+    video_group.add_argument('-v1', '--news', action="store_true")
+    video_group.add_argument('-v2', '--soccer', action="store_true")
+    video_group.add_argument('-v3', '--ngc', action="store_true")
+
+    parser.add_argument('-d', '--dry', action = 'store_true', help="only print image")
+
+    args = parser.parse_args()
+    read_func = ''
+    cmp_func = ''
+    if args.pair_wise:
+        cmp_func = pair_wise
+    elif args.grey_histogram:
+        cmp_func = histogram_comparison
+    elif args.color_histogram:
+        cmp_func = color_histogram_comp
+    elif args.likelihood_ratio:
+        cmp_func = likelihood_ratio
+    elif args.edge_detection:
+        cmp_func = edge_detection
+
+    if args.news:
+        read_func = read_news
+    elif args.soccer:
+        read_func = read_soccer
+    elif args.ngc:
+        read_func = read_ngc
+
+    read_func(cmp_func)
