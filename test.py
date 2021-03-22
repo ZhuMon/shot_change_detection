@@ -58,27 +58,12 @@ def pair_wise(first, second, index):
     im2 = Image.open(second)
 
     assert im1.size == im2.size, "size of two image not the same"
-    pix1 = im1.load()
-    pix2 = im2.load()
 
-    pix1 = np.array(im1)
-    pix2 = np.array(im2)
-    DP = 0
+    pix1 = np.array(im1, dtype=int)
+    pix2 = np.array(im2, dtype=int)
+
     # compare pixel in two frame at same position
-    print(pix1[0][1])
-    print(pix2[0][1])
-    print(abs(pix2 - pix1)[0][1])
-    sys.exit(1)
-    for i in range(im1.size[0]):
-        for j in range(im1.size[1]):
-            # compare every intensity, and sum them
-            d = 0
-            for k in range(3):
-                d += abs(pix2[i, j][k] - pix1[i, j][k])
-            if d > PAIR_WISE_t:
-                DP += 1
-
-    # print(DP/(im1.size[0]*im1.size[1]) * 100, DP)
+    DP = sum(sum(np.sum(np.abs(pix1 - pix2),axis=2) > PAIR_WISE_t))
     # Normalize
     DP_n = DP/(im1.size[0]*im1.size[1]) * 100
     VALUE_FOR_PLOT.append(DP_n)    
@@ -92,8 +77,9 @@ def histogram_comparison(first, second, index):
     im2 = Image.open(second).convert('LA')
 
     assert im1.size == im2.size, "size of two image not the same"
-    pix1 = im1.load()
-    pix2 = im2.load()
+    pix1 = np.array(im1, dtype=int)
+    pix2 = np.array(im2, dtype=int)
+
 
     his1 = dict.fromkeys(range(0, 256), 0)
     his2 = dict.fromkeys(range(0, 256), 0)
@@ -252,18 +238,29 @@ def draw_plot():
     plt.plot(ans, an_y, 'ro')
     plt.show()
 
-def draw_PR_plot():
-    global ANSWER
-    global EXPAND_ANSWER
-    TRUE_ANSWER = answer(False)
-    TRUE_EXPAND_ANSWER = answer()
+def draw_PR_plot(cmp_func):
+    precisions = []
+    recalls = []
+    for i in range(10, 40, 5):
+        for j in range(i, 60, 5):
+            TWIN_COMPARISON_Tb = j
+            TWIN_COMPARISON_Ts = i
+            shot_change_detect(cmp_func)
 
-    TP = len(set(ANSWER) & set(TRUE_ANSWER))
-    FP = len(set(ANSWER) - set(TRUE_ANSWER))
-    FN = len(set(TRUE_ANSWER) - set(ANSWER))
+            global ANSWER
+            global EXPAND_ANSWER
+            TRUE_ANSWER = answer(False)
+            TRUE_EXPAND_ANSWER = answer()
 
-    precision = TP / (TP+FP)
-    recall = TP / (TP+FN)
+            TP = len(set(ANSWER) & set(TRUE_ANSWER))
+            FP = len(set(ANSWER) - set(TRUE_ANSWER))
+            FN = len(set(TRUE_ANSWER) - set(ANSWER))
+
+            precisions.append(TP / (TP+FP))
+            recalls.append(TP / (TP+FN))
+    plt.plot(recalls, precisions)
+    plt.show()
+
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -316,3 +313,5 @@ if __name__ == "__main__":
 
     shot_change_detect(cmp_func)
     draw_plot()
+
+    draw_PR_plot()
