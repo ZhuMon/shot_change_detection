@@ -6,7 +6,7 @@ from PIL import ImageFilter
 import numpy as np
 import matplotlib.pyplot as plt
 
-DRY = False # whether only plot
+DRY = False  # whether only plot
 VIDEO = ""
 VALUE_FOR_PLOT = []
 FRAME_AMOUNT = 0
@@ -20,9 +20,10 @@ TWIN_COMPARISON_Ts = 10
 TWIN_COMPARISON_accum = 0
 GRADUAL_TRANSITION_FRAME = []
 LIKELIHOOD_REGION_SIZE = (8, 8)
-EDGE_DETECT_THRESHOLD = 125 # threshold to decide whether edge
+EDGE_DETECT_THRESHOLD = 125  # threshold to decide whether edge
 ANSWER = []
 EXPAND_ANSWER = []
+
 
 def check_fade_or_wipe(SD, index):
     global GRADUAL_TRANSITION_FRAME
@@ -32,9 +33,10 @@ def check_fade_or_wipe(SD, index):
             if TWIN_COMPARISON_accum > TWIN_COMPARISON_Tb:
                 print(
                     f"{GRADUAL_TRANSITION_FRAME[0]}~{GRADUAL_TRANSITION_FRAME[-1]}")
-                ANSWER.append(f"{GRADUAL_TRANSITION_FRAME[0]}~{GRADUAL_TRANSITION_FRAME[-1]}")
+                ANSWER.append(
+                    f"{GRADUAL_TRANSITION_FRAME[0]}~{GRADUAL_TRANSITION_FRAME[-1]}")
                 EXPAND_ANSWER += GRADUAL_TRANSITION_FRAME
- 
+
             GRADUAL_TRANSITION_FRAME = []
         TWIN_COMPARISON_accum = TWIN_COMPARISON_Ts
         return True
@@ -47,7 +49,8 @@ def check_fade_or_wipe(SD, index):
             if TWIN_COMPARISON_accum > TWIN_COMPARISON_Tb:
                 print(
                     f"{GRADUAL_TRANSITION_FRAME[0]}~{GRADUAL_TRANSITION_FRAME[-1]}")
-                ANSWER.append(f"{GRADUAL_TRANSITION_FRAME[0]}~{GRADUAL_TRANSITION_FRAME[-1]}")
+                ANSWER.append(
+                    f"{GRADUAL_TRANSITION_FRAME[0]}~{GRADUAL_TRANSITION_FRAME[-1]}")
             GRADUAL_TRANSITION_FRAME = []
         TWIN_COMPARISON_accum = TWIN_COMPARISON_Ts
         return False
@@ -63,13 +66,14 @@ def pair_wise(first, second, index):
     pix2 = np.array(im2, dtype=int)
 
     # compare pixel in two frame at same position
-    DP = sum(sum(np.sum(np.abs(pix1 - pix2),axis=2) > PAIR_WISE_t))
+    DP = sum(sum(np.sum(np.abs(pix1 - pix2), axis=2) > PAIR_WISE_t))
     # Normalize
     DP_n = DP/(im1.size[0]*im1.size[1]) * 100
-    VALUE_FOR_PLOT.append(DP_n)    
+    VALUE_FOR_PLOT.append(DP_n)
     if DRY:
         return False
     return check_fade_or_wipe(DP_n, index)
+
 
 def histogram_comparison(first, second, index):
     # only grey level
@@ -79,7 +83,6 @@ def histogram_comparison(first, second, index):
     assert im1.size == im2.size, "size of two image not the same"
     pix1 = np.array(im1, dtype=int)
     pix2 = np.array(im2, dtype=int)
-
 
     his1 = dict.fromkeys(range(0, 256), 0)
     his2 = dict.fromkeys(range(0, 256), 0)
@@ -94,7 +97,7 @@ def histogram_comparison(first, second, index):
 
     # Normalize
     SD_n = SD/(im1.size[0]*im1.size[1]) * 100
-    VALUE_FOR_PLOT.append(SD_n)    
+    VALUE_FOR_PLOT.append(SD_n)
     if DRY:
         return False
     return check_fade_or_wipe(SD_n, index)
@@ -128,10 +131,11 @@ def color_histogram_comp(first, second, index):
             CHD += abs(his1[c] - his2[c])
 
     CHD_n = CHD / (im1.size[0] * im1.size[1]) * 100
-    VALUE_FOR_PLOT.append(CHD_n)    
+    VALUE_FOR_PLOT.append(CHD_n)
     if DRY:
         return False
     return check_fade_or_wipe(CHD_n, index)
+
 
 def likelihood_ratio(first, second, index):
     im1 = Image.open(first).convert('LA')
@@ -147,10 +151,10 @@ def likelihood_ratio(first, second, index):
     expanded_pix2 = []
     for i in range(im1.size[0]):
         for j in range(im1.size[1]):
-            sum1 += pix1[i,j][0]
-            sum2 += pix2[i,j][0]
-            expanded_pix1.append(pix1[i,j][0])
-            expanded_pix2.append(pix2[i,j][0])
+            sum1 += pix1[i, j][0]
+            sum2 += pix2[i, j][0]
+            expanded_pix1.append(pix1[i, j][0])
+            expanded_pix2.append(pix2[i, j][0])
 
     mean1 = sum1/(im1.size[0]*im1.size[1])
     mean2 = sum2/(im1.size[0]*im1.size[1])
@@ -158,11 +162,13 @@ def likelihood_ratio(first, second, index):
     cov1 = np.cov(expanded_pix1)
     cov2 = np.cov(expanded_pix2)
 
-    LR = (((cov1 + cov2)/2 + ((mean1-mean2)/2)**2)**2) / 2 / (im1.size[0]*im1.size[1]) *100
+    LR = (((cov1 + cov2)/2 + ((mean1-mean2)/2)**2)**2) / \
+        2 / (im1.size[0]*im1.size[1]) * 100
     VALUE_FOR_PLOT.append(LR)
     if DRY:
         return False
     return check_fade_or_wipe(LR, index)
+
 
 def edge_detection(first, second, index):
     im1 = Image.open(first).convert('L')
@@ -175,21 +181,21 @@ def edge_detection(first, second, index):
     pix1 = edg1.load()
     pix2 = edg2.load()
 
-    delta_n1 = 0 # number of edge of first image
+    delta_n1 = 0  # number of edge of first image
     delta_n2 = 0
     X_in = 0
     X_out = 0
     for i in range(im1.size[0]):
         for j in range(im1.size[1]):
             # second image has new edge
-            if pix2[i,j] >= EDGE_DETECT_THRESHOLD:
+            if pix2[i, j] >= EDGE_DETECT_THRESHOLD:
                 delta_n2 += 1
-                if pix1[i,j] < EDGE_DETECT_THRESHOLD:
+                if pix1[i, j] < EDGE_DETECT_THRESHOLD:
                     X_in += 1
             # second image remove the edge
-            if pix1[i,j] >= EDGE_DETECT_THRESHOLD:
+            if pix1[i, j] >= EDGE_DETECT_THRESHOLD:
                 delta_n1 += 1
-                if pix2[i,j] < EDGE_DETECT_THRESHOLD:
+                if pix2[i, j] < EDGE_DETECT_THRESHOLD:
                     X_out += 1
 
     ECR = max(X_in/delta_n2, X_out/delta_n1)
@@ -197,9 +203,9 @@ def edge_detection(first, second, index):
     if DRY:
         return False
     return check_fade_or_wipe(ECR, index)
-            
-    
-def answer(expand = True):
+
+
+def answer(expand=True):
     global VIDEO
     with open(f"{VIDEO}_ground.txt", 'r') as f:
         shot_change = []
@@ -216,6 +222,7 @@ def answer(expand = True):
 
     return shot_change
 
+
 def shot_change_detect(compare=pair_wise):
     for i in range(FRAME_AMOUNT):
         if i % 100 == 0:
@@ -224,6 +231,7 @@ def shot_change_detect(compare=pair_wise):
             print(i+1)
             ANSWER.append(f"{i+1}")
             EXPAND_ANSWER.append(f"{i+1}")
+
 
 def draw_plot():
     global VIDEO
@@ -237,6 +245,7 @@ def draw_plot():
     plt.plot(y)
     plt.plot(ans, an_y, 'ro')
     plt.show()
+
 
 def draw_PR_plot(cmp_func):
     precisions = []
@@ -261,7 +270,7 @@ def draw_PR_plot(cmp_func):
     plt.plot(recalls, precisions)
     plt.show()
 
-    
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     method_group = parser.add_mutually_exclusive_group()
@@ -275,7 +284,8 @@ if __name__ == "__main__":
     video_group.add_argument('-v2', '--soccer', action="store_true")
     video_group.add_argument('-v3', '--ngc', action="store_true")
 
-    parser.add_argument('-d', '--dry', action = 'store_true', help="only print image")
+    parser.add_argument('-d', '--dry', action='store_true',
+                        help="only print image")
 
     args = parser.parse_args()
     cmp_func = ''
@@ -289,6 +299,9 @@ if __name__ == "__main__":
         cmp_func = likelihood_ratio
     elif args.edge_detection:
         cmp_func = edge_detection
+    else:
+        print("Please choose a method")
+        sys.exit(1)
 
     if args.news:
         FRAME_AMOUNT = 1379
@@ -307,6 +320,9 @@ if __name__ == "__main__":
         FILE_PREFIX = "ngc_out/ngc-"
         FILE_EXTENSION = "jpeg"
         VIDEO = "ngc"
+    else:
+        print("Please choose a video")
+        sys.exit(1)
 
     if args.dry:
         DRY = True
