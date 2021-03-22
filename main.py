@@ -1,5 +1,6 @@
 import sys
 import argparse
+from collections import Counter
 
 from PIL import Image
 from PIL import ImageFilter
@@ -24,6 +25,10 @@ EDGE_DETECT_THRESHOLD = 125  # threshold to decide whether edge
 ANSWER = []
 EXPAND_ANSWER = []
 
+def count_rgb(arr):
+    arr = arr.reshape(-1, arr.shape[-1])
+    t = [tuple(x) for x in arr]
+    return Counter(arr)
 
 def check_fade_or_wipe(SD, index):
     global GRADUAL_TRANSITION_FRAME
@@ -83,7 +88,7 @@ def pair_wise(first, second, index):
     return check_fade_or_wipe(DP_n, index)
 
 
-def histogram_comparison(first, second, index):
+def histogram_comparison (first, second, index):
     global VALUE_FOR_PLOT
     global DRY
 
@@ -92,21 +97,13 @@ def histogram_comparison(first, second, index):
     im2 = Image.open(second).convert('LA')
 
     assert im1.size == im2.size, "size of two image not the same"
-    pix1 = np.array(im1, dtype=int)[:, 0]
-    pix2 = np.array(im2, dtype=int)[:, 0]
+    pix1 = np.array(im1, dtype=int)[:, :, 0].reshape(-1)
+    pix2 = np.array(im2, dtype=int)[:, :, 0].reshape(-1)
 
-    his1 = np.histogram(pix1, bins=np.arange(255))
-    his2 = np.histogram(pix2, bins=np.arange(255))
-    # his1 = dict.fromkeys(range(0, 256), 0)
-    # his2 = dict.fromkeys(range(0, 256), 0)
-    # for i in range(im1.size[0]):
-    # for j in range(im1.size[1]):
-    # his1[pix1[i][j][0]] += 1
-    # his2[pix2[i][j][0]] += 1
+    his1 = np.histogram(pix1, bins=np.arange(256))
+    his2 = np.histogram(pix2, bins=np.arange(256))
 
     SD = sum(np.abs(his1[0] - his2[0]))
-    # for i in range(256):
-    # SD += abs(his1[i] - his2[i])
 
     # Normalize
     SD_n = SD/(im1.size[0]*im1.size[1]) * 100
@@ -124,16 +121,17 @@ def color_histogram_comp(first, second, index):
     im2 = Image.open(second)
 
     assert im1.size == im2.size, "size of two image not the same"
-    pix1 = im1.load()
-    pix2 = im2.load()
-    his1 = {}
-    his2 = {}
-    for i in range(im1.size[0]):
-        for j in range(im1.size[1]):
-            his1[pix1[i, j]] = 0 if pix1[i,
-                                         j] not in his1.keys() else his1[pix1[i, j]] + 1
-            his2[pix2[i, j]] = 0 if pix2[i,
-                                         j] not in his2.keys() else his2[pix2[i, j]] + 1
+    pix1 = np.array(im1, dtype=int).reshape(im1.size[0]*im1.size[1],3)
+    pix2 = np.array(im2, dtype=int).reshape(im2.size[0]*im2.size[1],3)
+    his1 = count_rgb(pix1)
+    his2 = count_rgb(pix2)
+
+    # for i in range(im1.size[0]):
+        # for j in range(im1.size[1]):
+            # his1[pix1[i, j]] = 0 if pix1[i,
+                                         # j] not in his1.keys() else his1[pix1[i, j]] + 1
+            # his2[pix2[i, j]] = 0 if pix2[i,
+                                         # j] not in his2.keys() else his2[pix2[i, j]] + 1
 
     color_union = set(his1.keys()).union(his2.keys())
 
@@ -161,25 +159,29 @@ def likelihood_ratio(first, second, index):
     im2 = Image.open(second).convert('LA')
 
     assert im1.size == im2.size, "size of two image not the same"
-    pix1 = im1.load()
-    pix2 = im2.load()
+    # pix1 = im1.load()
+    # pix2 = im2.load()
+    pix1 = np.array(im1, dtype=int)[:, :, 0].reshape(-1)
+    pix2 = np.array(im2, dtype=int)[:, :, 0].reshape(-1)
+    # pix1 = pix1.reshape(-1)#, pix1.shape[-1])
+    # pix2 = pix2.reshape(-1, pix2.shape[-1])
 
-    sum1 = 0
-    sum2 = 0
-    expanded_pix1 = []
-    expanded_pix2 = []
-    for i in range(im1.size[0]):
-        for j in range(im1.size[1]):
-            sum1 += pix1[i, j][0]
-            sum2 += pix2[i, j][0]
-            expanded_pix1.append(pix1[i, j][0])
-            expanded_pix2.append(pix2[i, j][0])
+    sum1 = np.sum(pix1)
+    sum2 = np.sum(pix2)
+    # expanded_pix1 = []
+    # expanded_pix2 = []
+    # for i in range(im1.size[0]):
+        # for j in range(im1.size[1]):
+            # sum1 += pix1[i, j][0]
+            # sum2 += pix2[i, j][0]
+            # expanded_pix1.append(pix1[i, j][0])
+            # expanded_pix2.append(pix2[i, j][0])
 
     mean1 = sum1/(im1.size[0]*im1.size[1])
     mean2 = sum2/(im1.size[0]*im1.size[1])
 
-    cov1 = np.cov(expanded_pix1)
-    cov2 = np.cov(expanded_pix2)
+    cov1 = np.cov(pix1)
+    cov2 = np.cov(pix2)
 
     LR = (((cov1 + cov2)/2 + ((mean1-mean2)/2)**2)**2) / \
         2 / (im1.size[0]*im1.size[1]) * 100
@@ -219,7 +221,16 @@ def edge_detection(first, second, index):
                 if pix2[i, j] < EDGE_DETECT_THRESHOLD:
                     X_out += 1
 
-    ECR = max(X_in/delta_n2, X_out/delta_n1)
+    try:
+        ECR = max(X_in/delta_n2, X_out/delta_n1)
+    except:
+        if delta_n2 == 0 and delta_n1 == 0:
+            ECR = 0
+        elif delta_n1 == 0:
+            ECR = X_in/delta_n2
+        elif delta_n2 == 0:
+            ECR = X_out/delta_n1
+
     VALUE_FOR_PLOT.append(ECR)
     if DRY:
         return False
@@ -276,8 +287,8 @@ def draw_PR_plot(cmp_func):
 
     precisions = []
     recalls = []
-    for i in range(10, 60, 5):
-        for j in range(i, i+20, 5):
+    for i in np.arange(0.2, 0.7, 0.1):
+        for j in np.arange(i, i+0.3, 0.1):
             ANSWER = []
             EXPAND_ANSWER = []
 
@@ -296,8 +307,16 @@ def draw_PR_plot(cmp_func):
             FP = len(set(EXPAND_ANSWER) - set(TRUE_EXPAND_ANSWER))
             FN = len(set(TRUE_EXPAND_ANSWER) - set(EXPAND_ANSWER))
 
-            precisions.append(TP / (TP+FP))
-            recalls.append(TP / (TP+FN))
+            if TP+FP == 0:
+                precisions.append(0)
+            else:
+                precisions.append(TP / (TP+FP))
+
+            if TP+FN == 0:
+                recalls.append(0)
+            else:
+                recalls.append(TP / (TP+FN))
+
             print(precisions[-1], recalls[-1])
     plt.plot(recalls, precisions)
     plt.show()
@@ -359,7 +378,8 @@ if __name__ == "__main__":
     if args.dry:
         DRY = True
 
-    # shot_change_detect(cmp_func)
-    # draw_plot()
+        shot_change_detect(cmp_func)
+        draw_plot()
 
-    draw_PR_plot(cmp_func)
+    else:
+        draw_PR_plot(cmp_func)
