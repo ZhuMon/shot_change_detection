@@ -27,12 +27,17 @@ EXPAND_ANSWER = []
 
 def check_fade_or_wipe(SD, index):
     global GRADUAL_TRANSITION_FRAME
+    global TWIN_COMPARISON_Tb
+    global TWIN_COMPARISON_Ts
     global TWIN_COMPARISON_accum
+    global ANSWER
+    global EXPAND_ANSWER
+
     if SD > TWIN_COMPARISON_Tb:
         if len(GRADUAL_TRANSITION_FRAME) != 0:
             if TWIN_COMPARISON_accum > TWIN_COMPARISON_Tb:
-                print(
-                    f"{GRADUAL_TRANSITION_FRAME[0]}~{GRADUAL_TRANSITION_FRAME[-1]}")
+                # print(
+                # f"{GRADUAL_TRANSITION_FRAME[0]}~{GRADUAL_TRANSITION_FRAME[-1]}")
                 ANSWER.append(
                     f"{GRADUAL_TRANSITION_FRAME[0]}~{GRADUAL_TRANSITION_FRAME[-1]}")
                 EXPAND_ANSWER += GRADUAL_TRANSITION_FRAME
@@ -47,8 +52,8 @@ def check_fade_or_wipe(SD, index):
     else:
         if len(GRADUAL_TRANSITION_FRAME) != 0:
             if TWIN_COMPARISON_accum > TWIN_COMPARISON_Tb:
-                print(
-                    f"{GRADUAL_TRANSITION_FRAME[0]}~{GRADUAL_TRANSITION_FRAME[-1]}")
+                # print(
+                # f"{GRADUAL_TRANSITION_FRAME[0]}~{GRADUAL_TRANSITION_FRAME[-1]}")
                 ANSWER.append(
                     f"{GRADUAL_TRANSITION_FRAME[0]}~{GRADUAL_TRANSITION_FRAME[-1]}")
             GRADUAL_TRANSITION_FRAME = []
@@ -57,6 +62,9 @@ def check_fade_or_wipe(SD, index):
 
 
 def pair_wise(first, second, index):
+    global PAIR_WISE_t
+    global VALUE_FOR_PLOT
+
     im1 = Image.open(first)
     im2 = Image.open(second)
 
@@ -76,24 +84,29 @@ def pair_wise(first, second, index):
 
 
 def histogram_comparison(first, second, index):
+    global VALUE_FOR_PLOT
+    global DRY
+
     # only grey level
     im1 = Image.open(first).convert('LA')
     im2 = Image.open(second).convert('LA')
 
     assert im1.size == im2.size, "size of two image not the same"
-    pix1 = np.array(im1, dtype=int)
-    pix2 = np.array(im2, dtype=int)
+    pix1 = np.array(im1, dtype=int)[:, 0]
+    pix2 = np.array(im2, dtype=int)[:, 0]
 
-    his1 = dict.fromkeys(range(0, 256), 0)
-    his2 = dict.fromkeys(range(0, 256), 0)
-    for i in range(im1.size[0]):
-        for j in range(im1.size[1]):
-            his1[pix1[i, j][0]] += 1
-            his2[pix2[i, j][0]] += 1
+    his1 = np.histogram(pix1, bins=np.arange(255))
+    his2 = np.histogram(pix2, bins=np.arange(255))
+    # his1 = dict.fromkeys(range(0, 256), 0)
+    # his2 = dict.fromkeys(range(0, 256), 0)
+    # for i in range(im1.size[0]):
+    # for j in range(im1.size[1]):
+    # his1[pix1[i][j][0]] += 1
+    # his2[pix2[i][j][0]] += 1
 
-    SD = 0
-    for i in range(256):
-        SD += abs(his1[i] - his2[i])
+    SD = sum(np.abs(his1[0] - his2[0]))
+    # for i in range(256):
+    # SD += abs(his1[i] - his2[i])
 
     # Normalize
     SD_n = SD/(im1.size[0]*im1.size[1]) * 100
@@ -104,6 +117,9 @@ def histogram_comparison(first, second, index):
 
 
 def color_histogram_comp(first, second, index):
+    global VALUE_FOR_PLOT
+    global DRY
+
     im1 = Image.open(first)
     im2 = Image.open(second)
 
@@ -138,6 +154,9 @@ def color_histogram_comp(first, second, index):
 
 
 def likelihood_ratio(first, second, index):
+    global VALUE_FOR_PLOT
+    global DRY
+
     im1 = Image.open(first).convert('LA')
     im2 = Image.open(second).convert('LA')
 
@@ -171,6 +190,8 @@ def likelihood_ratio(first, second, index):
 
 
 def edge_detection(first, second, index):
+    global VALUE_FOR_PLOT
+    global DRY
     im1 = Image.open(first).convert('L')
     im2 = Image.open(second).convert('L')
 
@@ -225,12 +246,12 @@ def answer(expand=True):
 
 def shot_change_detect(compare=pair_wise):
     for i in range(FRAME_AMOUNT):
-        if i % 100 == 0:
-            print(f"{i:04}/{FRAME_AMOUNT}")
+        # if i % 100 == 0:
+        # print(f"{i:04}/{FRAME_AMOUNT}")
         if compare(f"{FILE_PREFIX}{i:04}.{FILE_EXTENSION}", f"{FILE_PREFIX}{i+1:04}.{FILE_EXTENSION}", i):
-            print(i+1)
-            ANSWER.append(f"{i+1}")
-            EXPAND_ANSWER.append(f"{i+1}")
+            # print(i+1)
+            ANSWER.append(i+1)
+            EXPAND_ANSWER.append(i+1)
 
 
 def draw_plot():
@@ -248,25 +269,36 @@ def draw_plot():
 
 
 def draw_PR_plot(cmp_func):
+    global TWIN_COMPARISON_Tb
+    global TWIN_COMPARISON_Ts
+    global ANSWER
+    global EXPAND_ANSWER
+
     precisions = []
     recalls = []
-    for i in range(10, 40, 5):
-        for j in range(i, 60, 5):
+    for i in range(10, 60, 5):
+        for j in range(i, i+20, 5):
+            ANSWER = []
+            EXPAND_ANSWER = []
+
+            # print(i, j)
             TWIN_COMPARISON_Tb = j
             TWIN_COMPARISON_Ts = i
             shot_change_detect(cmp_func)
 
-            global ANSWER
-            global EXPAND_ANSWER
             TRUE_ANSWER = answer(False)
             TRUE_EXPAND_ANSWER = answer()
 
-            TP = len(set(ANSWER) & set(TRUE_ANSWER))
-            FP = len(set(ANSWER) - set(TRUE_ANSWER))
-            FN = len(set(TRUE_ANSWER) - set(ANSWER))
+            # TP = len(set(ANSWER) & set(TRUE_ANSWER))
+            # FP = len(set(ANSWER) - set(TRUE_ANSWER))
+            # FN = len(set(TRUE_ANSWER) - set(ANSWER))
+            TP = len(set(EXPAND_ANSWER) & set(TRUE_EXPAND_ANSWER))
+            FP = len(set(EXPAND_ANSWER) - set(TRUE_EXPAND_ANSWER))
+            FN = len(set(TRUE_EXPAND_ANSWER) - set(EXPAND_ANSWER))
 
             precisions.append(TP / (TP+FP))
             recalls.append(TP / (TP+FN))
+            print(precisions[-1], recalls[-1])
     plt.plot(recalls, precisions)
     plt.show()
 
@@ -327,7 +359,7 @@ if __name__ == "__main__":
     if args.dry:
         DRY = True
 
-    shot_change_detect(cmp_func)
-    draw_plot()
+    # shot_change_detect(cmp_func)
+    # draw_plot()
 
-    draw_PR_plot()
+    draw_PR_plot(cmp_func)
